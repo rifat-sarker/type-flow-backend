@@ -1,11 +1,13 @@
 import { Response } from "express";
 import bcrypt from "bcryptjs";
-import { User } from "../models/User";
+import { IUser, User } from "../models/User";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../services/token.service";
 import { ApiError } from "../utils/ApiError";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AuthedRequest } from "../middleware/auth";
 import { env } from "../config/env";
+import { sendOtpEmail } from "../services/email.service";
+import { generateOtpCode, hashOtp, compareOtp, OTP_TTL_MS } from "../utils/otp";
 
 const REFRESH_COOKIE = "typeflow_refresh";
 
@@ -17,6 +19,24 @@ function setRefreshCookie(res: Response, token: string): void {
     maxAge: 30 * 24 * 60 * 60 * 1000,
     path: "/api/auth",
   });
+}
+
+function serializeUser(user: IUser) {
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    bestWpm: user.bestWpm,
+    role: user.role,
+    isVerified: user.isVerified,
+  };
+}
+
+async function issueOtp(user: IUser, purpose: "verify" | "reset"): Promise<void> {
+  const code = generateOtpCode();
+  user.otp = { codeHash: await hashOtp(code), purpose, expiresAt: new Date(Date.now() + OTP_TTL_MS) };
+  await user.save();
+  await sendOtpEmail(user.email, code, purpose);
 }
 
 export const register = asyncHandler(async (req, res) => {
@@ -38,15 +58,82 @@ export const register = asyncHandler(async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const user = await User.create({ username, email: email.toLowerCase(), passwordHash });
+  await issueOtp(user, "verify");
 
   const payload = { userId: user.id, username: user.username };
   const accessToken = signAccessToken(payload);
   setRefreshCookie(res, signRefreshToken(payload));
 
-  res.status(201).json({
-    accessToken,
-    user: { id: user.id, username: user.username, email: user.email, bestWpm: user.bestWpm },
-  });
+  res.status(201).json({ accessToken, user: serializeUser(user) });
+});
+
+export const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, code } = req.body as { email?: string; code?: string };
+  if (!email || !code) throw new ApiError(400, "email and code are required");
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user || !user.otp || user.otp.purpose !== "verify") {
+    throw new ApiError(400, "No pending verification for this email");
+  }
+  if (user.otp.expiresAt.getTime() < Date.now()) {
+    throw new ApiError(400, "Code expired - request a new one");
+  }
+  if (!(await compareOtp(code, user.otp.codeHash))) {
+    throw new ApiError(400, "Incorrect code");
+  }
+
+  user.isVerified = true;
+  user.otp = undefined;
+  await user.save();
+
+  res.json({ user: serializeUser(user) });
+});
+
+export const resendOtp = asyncHandler(async (req, res) => {
+  const { email, purpose } = req.body as { email?: string; purpose?: "verify" | "reset" };
+  if (!email || (purpose !== "verify" && purpose !== "reset")) {
+    throw new ApiError(400, "email and a valid purpose are required");
+  }
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  // Same response whether or not the account exists, so this can't be used to
+  // probe which emails are registered.
+  if (user && !(purpose === "verify" && user.isVerified)) {
+    await issueOtp(user, purpose);
+  }
+  res.json({ message: "If that account exists, a code has been sent." });
+});
+
+export const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body as { email?: string };
+  if (!email) throw new ApiError(400, "email is required");
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (user) await issueOtp(user, "reset");
+  res.json({ message: "If that account exists, a reset code has been sent." });
+});
+
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email, code, newPassword } = req.body as { email?: string; code?: string; newPassword?: string };
+  if (!email || !code || !newPassword) throw new ApiError(400, "email, code and newPassword are required");
+  if (newPassword.length < 8) throw new ApiError(400, "Password must be at least 8 characters");
+
+  const user = await User.findOne({ email: email.toLowerCase() });
+  if (!user || !user.otp || user.otp.purpose !== "reset") {
+    throw new ApiError(400, "No pending reset for this email");
+  }
+  if (user.otp.expiresAt.getTime() < Date.now()) {
+    throw new ApiError(400, "Code expired - request a new one");
+  }
+  if (!(await compareOtp(code, user.otp.codeHash))) {
+    throw new ApiError(400, "Incorrect code");
+  }
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  user.otp = undefined;
+  await user.save();
+
+  res.json({ message: "Password updated - you can log in now." });
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -67,10 +154,7 @@ export const login = asyncHandler(async (req, res) => {
   const accessToken = signAccessToken(payload);
   setRefreshCookie(res, signRefreshToken(payload));
 
-  res.json({
-    accessToken,
-    user: { id: user.id, username: user.username, email: user.email, bestWpm: user.bestWpm },
-  });
+  res.json({ accessToken, user: serializeUser(user) });
 });
 
 export const refresh = asyncHandler(async (req, res) => {
@@ -96,7 +180,5 @@ export const logout = asyncHandler(async (_req, res) => {
 export const me = asyncHandler(async (req: AuthedRequest, res) => {
   const user = await User.findById(req.user!.userId).select("-passwordHash");
   if (!user) throw new ApiError(404, "User not found");
-  res.json({
-    user: { id: user.id, username: user.username, email: user.email, bestWpm: user.bestWpm },
-  });
+  res.json({ user: serializeUser(user) });
 });

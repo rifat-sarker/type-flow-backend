@@ -4,9 +4,11 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { connectDB } from "./config/db";
 import { registerRaceSocket } from "./sockets/raceSocket";
+import { seedAdmin } from "./services/seedAdmin.service";
 
 async function main(): Promise<void> {
   await connectDB();
+  await seedAdmin();
 
   const server = http.createServer(app);
   const io = new Server(server, {
