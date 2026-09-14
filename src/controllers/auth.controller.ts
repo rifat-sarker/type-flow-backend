@@ -36,7 +36,14 @@ async function issueOtp(user: IUser, purpose: "verify" | "reset"): Promise<void>
   const code = generateOtpCode();
   user.otp = { codeHash: await hashOtp(code), purpose, expiresAt: new Date(Date.now() + OTP_TTL_MS) };
   await user.save();
-  await sendOtpEmail(user.email, code, purpose);
+
+  // Deliberately not awaited: an SMTP round-trip to Gmail takes 10-20s, which would
+  // otherwise stall the register/forgot-password response for that whole time. The
+  // code is already persisted, so the request can return immediately and the mail
+  // lands a moment later.
+  void sendOtpEmail(user.email, code, purpose).catch((err) =>
+    console.error(`[email] failed to send ${purpose} OTP to ${user.email}`, err)
+  );
 }
 
 export const register = asyncHandler(async (req, res) => {

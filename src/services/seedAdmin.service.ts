@@ -2,17 +2,12 @@ import bcrypt from "bcryptjs";
 import { User } from "../models/User";
 import { env } from "../config/env";
 
-// Runs once on startup. Idempotent: if an admin already exists, does nothing -
-// so it won't reset a password you've since changed just by restarting the server.
+// Runs on every startup. The .env values are the source of truth for the seeded
+// admin: if ADMIN_PASSWORD changes, the account's password is re-synced on the next
+// restart, so editing .env is all it takes to regain access.
 export async function seedAdmin(): Promise<void> {
   if (!env.ADMIN_EMAIL || !env.ADMIN_PASSWORD) {
     console.log("[seed] ADMIN_EMAIL/ADMIN_PASSWORD not set - skipping admin seed");
-    return;
-  }
-
-  const existingAdmin = await User.findOne({ role: "admin" });
-  if (existingAdmin) {
-    console.log(`[seed] admin already exists (${existingAdmin.email}) - skipping`);
     return;
   }
 
@@ -21,10 +16,14 @@ export async function seedAdmin(): Promise<void> {
 
   const existingByEmail = await User.findOne({ email });
   if (existingByEmail) {
+    const passwordMatches = await bcrypt.compare(env.ADMIN_PASSWORD, existingByEmail.passwordHash);
     existingByEmail.role = "admin";
     existingByEmail.isVerified = true;
+    if (!passwordMatches) existingByEmail.passwordHash = passwordHash;
     await existingByEmail.save();
-    console.log(`[seed] promoted existing user ${email} to admin`);
+    console.log(
+      `[seed] admin ${email} ready${passwordMatches ? "" : " (password re-synced from .env)"}`
+    );
     return;
   }
 
