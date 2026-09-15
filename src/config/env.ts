@@ -24,6 +24,15 @@ export const env = {
   EMAIL_USER: process.env.EMAIL_USER,
   EMAIL_PASS: process.env.EMAIL_PASS,
 
+  // Public URL of this backend, used to build OAuth callback URLs.
+  SERVER_URL: process.env.SERVER_URL || `http://localhost:${process.env.PORT || "4000"}`,
+
+  // Social login - optional. Blank means that provider's button is hidden.
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  GITHUB_CLIENT_ID: process.env.GITHUB_CLIENT_ID,
+  GITHUB_CLIENT_SECRET: process.env.GITHUB_CLIENT_SECRET,
+
   // Seeded on server startup if no admin exists yet - optional.
   ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,

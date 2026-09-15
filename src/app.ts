@@ -9,6 +9,7 @@ import leaderboardRoutes from "./routes/leaderboard.routes";
 import raceRoutes from "./routes/race.routes";
 import lessonsRoutes from "./routes/lessons.routes";
 import adminRoutes from "./routes/admin.routes";
+import friendsRoutes from "./routes/friends.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export const app = express();
@@ -28,5 +29,6 @@ app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/races", raceRoutes);
 app.use("/api/lessons", lessonsRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/friends", friendsRoutes);
 
 app.use(errorHandler);

@@ -19,6 +19,8 @@ interface SaveResultBody {
   incorrect?: number;
   extra?: number;
   missed?: number;
+  /** Per-character hit/miss from this test, merged into the user's running totals. */
+  keyStats?: Record<string, { hits: number; misses: number }>;
 }
 
 export const saveResult = asyncHandler(async (req: AuthedRequest, res) => {
@@ -49,6 +51,19 @@ export const saveResult = asyncHandler(async (req: AuthedRequest, res) => {
 
   // Streak: same day changes nothing, the next day extends it, any longer gap
   // restarts at 1. Dates are compared as plain YYYY-MM-DD strings.
+  // Merge this test's per-key results into the running totals that power
+  // weak-key practice.
+  if (body.keyStats) {
+    for (const [key, v] of Object.entries(body.keyStats)) {
+      if (!/^[a-z0-9.,;'?!-]$/.test(key)) continue; // ignore anything odd
+      const cur = user.keyStats.get(key) ?? { hits: 0, misses: 0 };
+      user.keyStats.set(key, {
+        hits: cur.hits + (Number(v?.hits) || 0),
+        misses: cur.misses + (Number(v?.misses) || 0),
+      });
+    }
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   if (user.lastPracticeDay !== today) {
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
@@ -92,4 +107,22 @@ export const myResults = asyncHandler(async (req: AuthedRequest, res) => {
   ]);
 
   res.json({ results, page, limit, total });
+});
+
+/** Keys the user gets wrong most often, worst first. */
+export const getWeakKeys = asyncHandler(async (req: AuthedRequest, res) => {
+  const user = await User.findById(req.user!.userId).select("keyStats");
+  if (!user) throw new ApiError(404, "User not found");
+
+  const keys = Array.from(user.keyStats?.entries() ?? [])
+    .map(([key, v]) => {
+      const total = (v.hits ?? 0) + (v.misses ?? 0);
+      return { key, hits: v.hits ?? 0, misses: v.misses ?? 0, total,
+               accuracy: total ? Math.round(((v.hits ?? 0) / total) * 100) : 100 };
+    })
+    // A couple of unlucky presses shouldn't brand a key as "weak".
+    .filter((k) => k.total >= 5)
+    .sort((a, b) => a.accuracy - b.accuracy);
+
+  res.json({ keys });
 });

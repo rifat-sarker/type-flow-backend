@@ -9,7 +9,9 @@ import { seedAdmin } from "./services/seedAdmin.service";
 
 async function main(): Promise<void> {
   await connectDB();
-  await seedAdmin();
+  // Seeding is a convenience, not a prerequisite - a failure here must never stop
+  // the API from coming up.
+  await seedAdmin().catch((err) => console.error("[seed] admin seed failed", err));
 
   const server = http.createServer(app);
   const io = new Server(server, {

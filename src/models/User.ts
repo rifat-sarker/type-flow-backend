@@ -20,6 +20,12 @@ export interface IUser extends Document {
   otp?: IOtp;
   completedLessons: string[];
   badges: string[];
+  /** Per-character hit/miss totals, accumulated across tests. */
+  keyStats: Map<string, { hits: number; misses: number }>;
+  /** Mutual friendships - both sides hold each other's id. */
+  friends: mongoose.Types.ObjectId[];
+  /** Incoming requests awaiting this user's decision. */
+  friendRequests: mongoose.Types.ObjectId[];
   streakDays: number;
   lastPracticeDay?: string; // YYYY-MM-DD, used to advance the streak
   createdAt: Date;
@@ -47,6 +53,13 @@ const userSchema = new Schema<IUser>(
     otp: { type: otpSchema, default: undefined },
     completedLessons: { type: [String], default: [] },
     badges: { type: [String], default: [] },
+    friends: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    friendRequests: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    keyStats: {
+      type: Map,
+      of: new Schema({ hits: Number, misses: Number }, { _id: false }),
+      default: () => new Map(),
+    },
     streakDays: { type: Number, default: 0 },
     lastPracticeDay: { type: String },
   },
