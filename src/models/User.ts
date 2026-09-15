@@ -12,9 +12,12 @@ export interface IOtp {
 export interface IUser extends Document {
   username: string;
   email: string;
-  passwordHash: string;
+  /** Absent for accounts created purely through Google/GitHub. */
+  passwordHash?: string;
   bestWpm: number;
   testsCompleted: number;
+  googleId?: string;
+  githubId?: string;
   role: UserRole;
   isVerified: boolean;
   otp?: IOtp;
@@ -45,7 +48,10 @@ const userSchema = new Schema<IUser>(
   {
     username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 20 },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
-    passwordHash: { type: String, required: true },
+    // Not required: social-login accounts never set one until they add a password.
+    passwordHash: { type: String },
+    googleId: { type: String, index: true, sparse: true },
+    githubId: { type: String, index: true, sparse: true },
     bestWpm: { type: Number, default: 0 },
     testsCompleted: { type: Number, default: 0 },
     role: { type: String, enum: ["user", "admin"], default: "user" },

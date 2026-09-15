@@ -14,6 +14,7 @@ import {
   changePassword,
 } from "../controllers/auth.controller";
 import { requireAuth } from "../middleware/auth";
+import { startOAuth, oauthCallback, listProviders } from "../controllers/oauth.controller";
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -47,5 +48,12 @@ router.post("/verify-otp", otpLimiter, verifyOtp);
 router.post("/resend-otp", otpLimiter, resendOtp);
 router.post("/forgot-password", otpLimiter, forgotPassword);
 router.post("/reset-password", otpLimiter, resetPassword);
+
+router.get("/providers", listProviders);
+
+for (const p of ["google", "github"] as const) {
+  router.get(`/${p}`, startOAuth(p));
+  router.get(`/${p}/callback`, oauthCallback(p));
+}
 
 export default router;

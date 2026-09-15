@@ -20,7 +20,9 @@ export async function seedAdmin(): Promise<void> {
   const existing = await User.findOne({ email }).select("passwordHash");
 
   if (existing) {
-    const matches = await bcrypt.compare(env.ADMIN_PASSWORD, existing.passwordHash);
+    const matches = existing.passwordHash
+      ? await bcrypt.compare(env.ADMIN_PASSWORD, existing.passwordHash)
+      : false;
     const update: Record<string, unknown> = { role: "admin", isVerified: true };
     if (!matches) update.passwordHash = await bcrypt.hash(env.ADMIN_PASSWORD, 12);
 

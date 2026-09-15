@@ -29,6 +29,7 @@ function serializeUser(user: IUser) {
     bestWpm: user.bestWpm,
     role: user.role,
     isVerified: user.isVerified,
+    hasPassword: !!user.passwordHash,
   };
 }
 
@@ -153,6 +154,10 @@ export const login = asyncHandler(async (req, res) => {
     $or: [{ email: emailOrUsername.toLowerCase() }, { username: emailOrUsername }],
   });
   if (!user) throw new ApiError(401, "Invalid credentials");
+  if (!user.passwordHash) {
+    // Account was created through Google/GitHub and has no password yet.
+    throw new ApiError(400, "This account uses social login. Sign in with Google or GitHub.");
+  }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) throw new ApiError(401, "Invalid credentials");
@@ -212,6 +217,9 @@ export const changePassword = asyncHandler(async (req: AuthedRequest, res) => {
   const user = await User.findById(req.user!.userId);
   if (!user) throw new ApiError(404, "User not found");
 
+  if (!user.passwordHash) {
+    throw new ApiError(400, "This account has no password yet - it was created with social login.");
+  }
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) throw new ApiError(401, "Current password is incorrect");
 
