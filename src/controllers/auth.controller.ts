@@ -184,6 +184,43 @@ export const logout = asyncHandler(async (_req, res) => {
   res.status(204).send();
 });
 
+export const updateProfile = asyncHandler(async (req: AuthedRequest, res) => {
+  const { username } = req.body as { username?: string };
+  if (!username || username.length < 3 || username.length > 20) {
+    throw new ApiError(400, "Username must be between 3 and 20 characters");
+  }
+
+  const taken = await User.findOne({ username, _id: { $ne: req.user!.userId } });
+  if (taken) throw new ApiError(409, "That username is already taken");
+
+  const user = await User.findByIdAndUpdate(req.user!.userId, { username }, { new: true });
+  if (!user) throw new ApiError(404, "User not found");
+
+  res.json({ user: serializeUser(user) });
+});
+
+export const changePassword = asyncHandler(async (req: AuthedRequest, res) => {
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword?: string;
+    newPassword?: string;
+  };
+  if (!currentPassword || !newPassword) {
+    throw new ApiError(400, "currentPassword and newPassword are required");
+  }
+  if (newPassword.length < 8) throw new ApiError(400, "Password must be at least 8 characters");
+
+  const user = await User.findById(req.user!.userId);
+  if (!user) throw new ApiError(404, "User not found");
+
+  const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+  if (!valid) throw new ApiError(401, "Current password is incorrect");
+
+  user.passwordHash = await bcrypt.hash(newPassword, 12);
+  await user.save();
+
+  res.json({ message: "Password updated." });
+});
+
 export const me = asyncHandler(async (req: AuthedRequest, res) => {
   const user = await User.findById(req.user!.userId).select("-passwordHash");
   if (!user) throw new ApiError(404, "User not found");

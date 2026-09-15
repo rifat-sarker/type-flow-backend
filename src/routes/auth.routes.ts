@@ -10,6 +10,8 @@ import {
   resendOtp,
   forgotPassword,
   resetPassword,
+  updateProfile,
+  changePassword,
 } from "../controllers/auth.controller";
 import { requireAuth } from "../middleware/auth";
 
@@ -38,6 +40,8 @@ router.post("/login", authLimiter, login);
 router.post("/refresh", refresh);
 router.post("/logout", logout);
 router.get("/me", requireAuth, me);
+router.patch("/profile", requireAuth, updateProfile);
+router.post("/change-password", requireAuth, changePassword);
 
 router.post("/verify-otp", otpLimiter, verifyOtp);
 router.post("/resend-otp", otpLimiter, resendOtp);

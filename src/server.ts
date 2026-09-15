@@ -4,6 +4,7 @@ import { app } from "./app";
 import { env } from "./config/env";
 import { connectDB } from "./config/db";
 import { registerRaceSocket } from "./sockets/raceSocket";
+import { registerPresenceSocket } from "./sockets/presenceSocket";
 import { seedAdmin } from "./services/seedAdmin.service";
 
 async function main(): Promise<void> {
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   });
 
   registerRaceSocket(io);
+  registerPresenceSocket(io);
 
   server.listen(env.PORT, () => {
     console.log(`[server] listening on port ${env.PORT} (${env.NODE_ENV})`);

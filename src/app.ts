@@ -7,6 +7,8 @@ import authRoutes from "./routes/auth.routes";
 import resultsRoutes from "./routes/results.routes";
 import leaderboardRoutes from "./routes/leaderboard.routes";
 import raceRoutes from "./routes/race.routes";
+import lessonsRoutes from "./routes/lessons.routes";
+import adminRoutes from "./routes/admin.routes";
 import { errorHandler } from "./middleware/errorHandler";
 
 export const app = express();
@@ -24,5 +26,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/results", resultsRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/races", raceRoutes);
+app.use("/api/lessons", lessonsRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use(errorHandler);

@@ -3,6 +3,10 @@ import { User } from "../models/User";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AuthedRequest } from "../middleware/auth";
 import { ApiError } from "../utils/ApiError";
+import { newlyEarnedBadges, BADGE_MAP } from "../utils/badges";
+
+// Kept in sync with the frontend course length (frontend/src/lib/lessons.ts).
+const TOTAL_LESSONS = 11;
 
 interface SaveResultBody {
   mode: "time" | "words" | "quote" | "zen";
@@ -37,12 +41,42 @@ export const saveResult = asyncHandler(async (req: AuthedRequest, res) => {
     missed: body.missed ?? 0,
   });
 
-  await User.findByIdAndUpdate(req.user!.userId, {
-    $inc: { testsCompleted: 1 },
-    $max: { bestWpm: body.wpm },
-  });
+  const user = await User.findById(req.user!.userId);
+  if (!user) throw new ApiError(404, "User not found");
 
-  res.status(201).json({ result });
+  user.testsCompleted = (user.testsCompleted ?? 0) + 1;
+  user.bestWpm = Math.max(user.bestWpm ?? 0, body.wpm);
+
+  // Streak: same day changes nothing, the next day extends it, any longer gap
+  // restarts at 1. Dates are compared as plain YYYY-MM-DD strings.
+  const today = new Date().toISOString().slice(0, 10);
+  if (user.lastPracticeDay !== today) {
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+    user.streakDays = user.lastPracticeDay === yesterday ? (user.streakDays ?? 0) + 1 : 1;
+    user.lastPracticeDay = today;
+  }
+
+  const earned = newlyEarnedBadges(
+    {
+      wpm: body.wpm,
+      accuracy: body.accuracy,
+      testsCompleted: user.testsCompleted,
+      lessonsCompleted: user.completedLessons?.length ?? 0,
+      totalLessons: TOTAL_LESSONS,
+      streakDays: user.streakDays ?? 0,
+    },
+    user.badges ?? []
+  );
+  if (earned.length) user.badges = (user.badges ?? []).concat(earned);
+
+  await user.save();
+
+  // The client uses `earnedBadges` to pop a celebration on the results screen.
+  res.status(201).json({
+    result,
+    earnedBadges: earned.map((id) => BADGE_MAP[id]).filter(Boolean),
+    streakDays: user.streakDays,
+  });
 });
 
 export const myResults = asyncHandler(async (req: AuthedRequest, res) => {

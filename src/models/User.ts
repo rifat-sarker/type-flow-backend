@@ -18,6 +18,10 @@ export interface IUser extends Document {
   role: UserRole;
   isVerified: boolean;
   otp?: IOtp;
+  completedLessons: string[];
+  badges: string[];
+  streakDays: number;
+  lastPracticeDay?: string; // YYYY-MM-DD, used to advance the streak
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +45,10 @@ const userSchema = new Schema<IUser>(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     isVerified: { type: Boolean, default: false },
     otp: { type: otpSchema, default: undefined },
+    completedLessons: { type: [String], default: [] },
+    badges: { type: [String], default: [] },
+    streakDays: { type: Number, default: 0 },
+    lastPracticeDay: { type: String },
   },
   { timestamps: true }
 );
