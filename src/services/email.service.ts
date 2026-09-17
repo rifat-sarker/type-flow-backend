@@ -17,7 +17,7 @@ function getTransporter(): Transporter | null {
 }
 
 export async function sendOtpEmail(to: string, code: string, purpose: "verify" | "reset"): Promise<void> {
-  const subject = purpose === "verify" ? "Verify your TypeFlow account" : "Reset your TypeFlow password";
+  const subject = purpose === "verify" ? "Verify your Typist account" : "Reset your Typist password";
   const heading = purpose === "verify" ? "Verify your email" : "Reset your password";
   const body = purpose === "verify" ? "Enter this code to verify your account:" : "Enter this code to reset your password:";
   const html = `
